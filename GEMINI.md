@@ -20,10 +20,13 @@
 由於這是一個靜態網頁專案，你可以直接在瀏覽器中開啟 `北市樹木地圖.html`。
 建議使用本地伺服器（如 VS Code 的 Live Server 或 `npx serve`）以獲得最佳體驗。
 
-### 資料更新流程 (TODO)
-目前資料存放在 `data/tree-data.js`。若要更新資料，需要執行以下步驟：
-1. 下載最新的台北市行道樹 CSV 檔案並存放在 `uploads/`。
-2. 將 CSV 轉換為 `tree-data.js` 格式（目前專案內未見轉換腳本，推測可能是手動或外部工具處理）。
+### 資料更新流程
+目前資料存放在 `data/tree-data.js`。你可以使用自動化腳本進行更新：
+1. 執行 `python3 scripts/update_data.py`。
+2. 此腳本會自動：
+    - 備份目前的 `uploads/TaipeiTree.csv`（檔名附加時間戳記）。
+    - 從資料源下載最新的 CSV 檔案。
+    - 將 CSV 轉換為 `tree-data.js` 格式，並精確處理座標與數值。
     - *欄位對照*：`[lat, lon, specIdx, distIdx, regionIdx, remarkIdx, diameter, height, id, date]`
 
 ## 開發慣例
