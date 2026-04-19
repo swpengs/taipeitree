@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8" />
+<title>北市樹木地圖 · Taipei Street Tree Map</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
+<style>
+  :root {
+    --bg: #f6f4ef;
+    --panel: #fbfaf6;
+    --panel-2: #ffffff;
+    --ink: #1f231f;
+    --ink-2: #555a52;
+    --ink-3: #8a8e84;
+    --line: #e4e0d4;
+    --line-2: #ecebe3;
+    --accent: #3d6a3a;
+    --accent-soft: #e7efe2;
+    --chip-bg: #efede4;
+    --shadow: 0 1px 2px rgba(35,40,30,0.04), 0 8px 24px rgba(35,40,30,0.08);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: "Noto Sans TC", system-ui, sans-serif; font-size: 14px; }
+  .app { display: grid; grid-template-columns: 340px 1fr; height: 100vh; height: 100dvh; width: 100vw; }
+  .side { background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; overflow: hidden; }
+  .menu-btn { display: none; position: absolute; top: 12px; left: 12px; z-index: 600; width: 40px; height: 40px; border-radius: 10px; background: rgba(251,250,246,0.96); border: 1px solid var(--line); box-shadow: var(--shadow); cursor: pointer; align-items: center; justify-content: center; padding: 0; }
+  .menu-btn span { display: block; width: 16px; height: 2px; background: var(--ink); position: relative; }
+  .menu-btn span::before, .menu-btn span::after { content: ''; position: absolute; left: 0; width: 16px; height: 2px; background: var(--ink); }
+  .menu-btn span::before { top: -5px; }
+  .menu-btn span::after { top: 5px; }
+  .scrim { display: none; position: fixed; inset: 0; background: rgba(20,22,18,0.35); z-index: 700; }
+  @media (max-width: 720px) {
+    .app { grid-template-columns: 1fr; }
+    .side { position: fixed; top: 0; left: 0; bottom: 0; width: 86%; max-width: 340px; z-index: 800; transform: translateX(-100%); transition: transform 0.28s ease; box-shadow: 4px 0 24px rgba(0,0,0,0.15); }
+    .side.open { transform: translateX(0); }
+    .menu-btn { display: flex; }
+    .scrim.show { display: block; }
+    .map-overlay { top: 12px; right: 12px; font-size: 10.5px; padding: 7px 10px; }
+    .leaflet-control-zoom { margin-bottom: 14px !important; margin-right: 10px !important; }
+  }
+  .brand { padding: 20px 22px 14px; border-bottom: 1px solid var(--line); }
+  .brand-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .brand-mark {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #6a9860 0%, #3d6a3a 55%, #274420 100%);
+    box-shadow: 0 0 0 3px #fff, 0 0 0 4px var(--line);
+  }
+  .brand-title { font-size: 15px; font-weight: 600; letter-spacing: 0.02em; }
+  .brand-sub { font-family: "JetBrains Mono", monospace; font-size: 10.5px; color: var(--ink-3); letter-spacing: 0.04em; text-transform: uppercase; }
+  .stats { display: flex; gap: 18px; margin-top: 10px; }
+  .stat { font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--ink-2); }
+  .stat strong { color: var(--ink); font-weight: 500; }
+
+  .search-wrap { padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
+  .search-label { font-size: 11px; color: var(--ink-3); letter-spacing: 0.08em; text-transform: uppercase; font-family: "JetBrains Mono", monospace; margin-bottom: 6px; }
+  .search-box { position: relative; }
+  .search-box input {
+    width: 100%; padding: 9px 32px 9px 32px; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--panel-2); font-family: inherit; font-size: 13px; color: var(--ink); outline: none;
+    transition: border 0.15s, box-shadow 0.15s;
+  }
+  .search-box input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; border: 1.5px solid var(--ink-3); border-radius: 50%; }
+  .search-icon::after { content: ''; position: absolute; right: -4px; bottom: -4px; width: 6px; height: 1.5px; background: var(--ink-3); transform: rotate(45deg); transform-origin: left center; }
+  .clear-btn { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; border: none; background: var(--line-2); border-radius: 50%; cursor: pointer; color: var(--ink-2); font-size: 11px; display: none; align-items: center; justify-content: center; padding: 0; }
+  .clear-btn.show { display: flex; }
+  .clear-btn:hover { background: var(--line); color: var(--ink); }
+
+  .mode-bar { padding: 8px 16px; display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--ink-2); border-bottom: 1px solid var(--line); background: var(--panel); }
+  .mode-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); transition: background 0.2s; }
+  .mode-bar.filtering .mode-dot { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .mode-bar .mode-text { flex: 1; }
+  .mode-bar button { background: none; border: 1px solid var(--line); padding: 3px 8px; border-radius: 4px; font-family: inherit; font-size: 11px; color: var(--ink-2); cursor: pointer; }
+  .mode-bar button:hover { background: var(--panel-2); color: var(--ink); }
+  .mode-bar button:disabled { opacity: 0.4; cursor: default; }
+
+  .species-list { flex: 1; overflow-y: auto; padding: 6px 8px 20px; }
+  .species-list::-webkit-scrollbar { width: 8px; }
+  .species-list::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+  .species-list::-webkit-scrollbar-track { background: transparent; }
+
+  .species-row { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 6px; cursor: pointer; user-select: none; transition: background 0.12s; }
+  .species-row:hover { background: var(--line-2); }
+  .species-row.active { background: var(--accent-soft); }
+  .species-row .check { width: 15px; height: 15px; border: 1.5px solid var(--line); border-radius: 3.5px; flex-shrink: 0; background: var(--panel-2); position: relative; transition: all 0.15s; }
+  .species-row.active .check { background: var(--accent); border-color: var(--accent); }
+  .species-row.active .check::after { content: ''; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px; border: solid white; border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); }
+  .species-row .swatch { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 0 1.5px rgba(255,255,255,0.9), 0 0 0 2.5px rgba(0,0,0,0.06); }
+  .species-row .name { flex: 1; font-size: 13px; color: var(--ink); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .species-row .count { font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--ink-3); letter-spacing: 0.02em; }
+  .species-row mark { background: #fff6a8; color: inherit; padding: 0 1px; border-radius: 2px; }
+  .empty-state { padding: 40px 20px; text-align: center; color: var(--ink-3); font-size: 12px; }
+
+  .map-area { position: relative; background: #e7e2d5; }
+  #map { width: 100%; height: 100%; background: #e7e2d5; }
+  .leaflet-tile-pane { filter: saturate(0.8) brightness(1.02); }
+
+  .map-overlay {
+    position: absolute; top: 14px; right: 14px;
+    background: rgba(251, 250, 246, 0.95); backdrop-filter: blur(8px);
+    border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px;
+    font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--ink-2);
+    box-shadow: var(--shadow); pointer-events: none; z-index: 500; letter-spacing: 0.02em;
+  }
+  .map-overlay strong { color: var(--ink); font-weight: 500; }
+
+  /* 定位按鈕 — 與 Leaflet zoom 控制對齊 */
+  .locate-btn {
+    position: absolute; right: 10px; bottom: 80px; z-index: 1000;
+    width: 34px; height: 34px; border-radius: 4px;
+    background: #fff; border: 2px solid rgba(0,0,0,0.2);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0; transition: background 0.15s;
+  }
+  .locate-btn:hover { background: #f4f4f4; }
+  .locate-btn.active svg { color: var(--accent); }
+  .locate-btn.loading svg { animation: spin 1s linear infinite; }
+  .locate-btn svg { width: 18px; height: 18px; color: #333; display: block; }
+  @media (max-width: 720px) {
+    .locate-btn { bottom: 86px; right: 10px; }
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* 使用者位置 marker - 薀藍點 + 脈衝環 */
+  .user-dot-wrap { pointer-events: none; }
+  .user-dot-inner {
+    width: 16px; height: 16px; border-radius: 50%;
+    background: #2f7cd6; border: 2.5px solid #fff;
+    box-shadow: 0 0 0 1px rgba(47,124,214,0.3), 0 2px 8px rgba(47,124,214,0.5);
+  }
+  .user-dot-pulse {
+    position: absolute; top: 50%; left: 50%; width: 16px; height: 16px;
+    border-radius: 50%; background: rgba(47,124,214,0.35);
+    transform: translate(-50%, -50%);
+    animation: userPulse 1.8s ease-out infinite;
+  }
+  @keyframes userPulse {
+    0% { width: 16px; height: 16px; opacity: 0.7; }
+    100% { width: 56px; height: 56px; opacity: 0; }
+  }
+
+  .zoom-hint {
+    position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+    background: rgba(31,35,31,0.88); color: #fff; font-size: 11.5px;
+    padding: 7px 14px; border-radius: 20px; z-index: 500; pointer-events: none;
+    font-family: "Noto Sans TC", sans-serif; letter-spacing: 0.02em;
+    opacity: 0; transition: opacity 0.25s;
+    backdrop-filter: blur(4px);
+  }
+  .zoom-hint.show { opacity: 1; }
+
+  .filter-summary { padding: 10px 14px; border-top: 1px solid var(--line); background: var(--panel); display: flex; flex-wrap: wrap; gap: 5px; max-height: 120px; overflow-y: auto; }
+  .filter-summary:empty { display: none; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px 3px 6px; background: var(--chip-bg); border-radius: 14px; font-size: 11.5px; color: var(--ink); cursor: pointer; transition: background 0.12s; }
+  .chip:hover { background: var(--line); }
+  .chip .chip-swatch { width: 8px; height: 8px; border-radius: 50%; }
+  .chip .chip-x { font-size: 14px; line-height: 1; color: var(--ink-3); margin-left: 2px; }
+
+  .foot { padding: 10px 16px; border-top: 1px solid var(--line); font-family: "JetBrains Mono", monospace; font-size: 10px; color: var(--ink-3); letter-spacing: 0.04em; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .foot a { color: var(--ink-2); text-decoration: none; transition: color 0.15s; }
+  .foot a:hover { color: var(--accent); }
+
+  /* Popup */
+  .leaflet-popup-content-wrapper { border-radius: 10px; padding: 0; box-shadow: var(--shadow); border: 1px solid var(--line); }
+  .leaflet-popup-content { margin: 0; font-family: "Noto Sans TC", sans-serif; min-width: 240px; }
+  .leaflet-popup-tip { box-shadow: var(--shadow); }
+  .tp { padding: 14px 16px 12px; }
+  .tp-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .tp-swatch { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+  .tp-species { font-size: 15px; font-weight: 600; color: var(--ink); }
+  .tp-id { font-family: "JetBrains Mono", monospace; font-size: 10.5px; color: var(--ink-3); margin-left: auto; letter-spacing: 0.02em; }
+  .tp-grid { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 12px; }
+  .tp-grid dt { color: var(--ink-3); font-family: "JetBrains Mono", monospace; font-size: 10.5px; letter-spacing: 0.04em; text-transform: uppercase; padding-top: 1px; }
+  .tp-grid dd { margin: 0; color: var(--ink); }
+  .tp-meta { border-top: 1px solid var(--line); padding: 8px 16px; font-family: "JetBrains Mono", monospace; font-size: 10.5px; color: var(--ink-3); background: var(--panel); border-radius: 0 0 9px 9px; display: flex; justify-content: space-between; }
+
+  /* Loading */
+  .loading {
+    position: fixed; inset: 0; background: var(--bg); z-index: 9999;
+    display: flex; align-items: center; justify-content: center; flex-direction: column;
+    gap: 14px; transition: opacity 0.4s;
+  }
+  .loading.hide { opacity: 0; pointer-events: none; }
+  .loading-dot {
+    width: 24px; height: 24px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #6a9860 0%, #3d6a3a 55%, #274420 100%);
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.3); opacity: 0.6; } }
+  .loading-text { font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--ink-3); letter-spacing: 0.08em; text-transform: uppercase; }
+</style>
+</head>
+<body>
+
+<div class="loading" id="loading">
+  <div class="loading-dot"></div>
+  <div class="loading-text" id="loadingText">Loading · 載入資料中</div>
+</div>
+
+<button class="menu-btn" id="menuBtn" aria-label="開啟選單"><span></span></button>
+<div class="scrim" id="scrim"></div>
+
+<div class="app" data-screen-label="Tree Map">
+  <aside class="side" id="side">
+    <div class="brand">
+      <div class="brand-row">
+        <div class="brand-mark"></div>
+        <div>
+          <div class="brand-title">台北市行道樹地圖</div>
+          <div class="brand-sub">Street Tree Atlas · Taipei</div>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat"><strong id="totalCount">—</strong> 棵樹</div>
+        <div class="stat"><strong id="speciesCount">—</strong> 種樹種</div>
+        <div class="stat"><strong id="visibleCount">—</strong> 顯示中</div>
+      </div>
+    </div>
+
+    <div class="search-wrap">
+      <div class="search-label">Search species · 搜尋樹種</div>
+      <div class="search-box">
+        <span class="search-icon"></span>
+        <input id="searchInput" type="text" placeholder="輸入樹種名稱（榕、樟、楓…）" autocomplete="off" />
+        <button class="clear-btn" id="clearBtn" aria-label="清除">×</button>
+      </div>
+    </div>
+
+    <div class="mode-bar" id="modeBar">
+      <span class="mode-dot"></span>
+      <span class="mode-text" id="modeText">顯示全部樹木</span>
+      <button id="clearFilterBtn" disabled>清除選取</button>
+    </div>
+
+    <div class="species-list" id="speciesList"></div>
+
+    <div class="filter-summary" id="filterSummary"></div>
+
+    <div class="foot">
+      <a href="https://data.taipei/dataset/detail?id=7a49d00c-a5ff-4a6b-be9e-aaa6dc1ff7e8" target="_blank" rel="noopener">台北市行道樹 Open Data ↗</a>
+      <span id="latestDate">—</span>
+    </div>
+  </aside>
+
+  <main class="map-area">
+    <div id="map"></div>
+    <div class="map-overlay">
+      <div><strong id="ovSpecies">—</strong> 種樹種 · <strong id="ovVisible">—</strong> 棵</div>
+    </div>
+    <div class="zoom-hint" id="zoomHint">資料量大，請放大地圖查看個別樹木</div>
+    <button class="locate-btn" id="locateBtn" title="定位至我的位置" aria-label="定位">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <line x1="12" y1="2" x2="12" y2="5"/>
+        <line x1="12" y1="19" x2="12" y2="22"/>
+        <line x1="2" y1="12" x2="5" y2="12"/>
+        <line x1="19" y1="12" x2="22" y2="12"/>
+      </svg>
+    </button>
+  </main>
+</div>
+
+<script src="data/tree-data.js"></script>
+<script>
+/* =========================================
+   1. 解析緊湊格式資料
+   ========================================= */
+const loadingText = document.getElementById('loadingText');
+loadingText.textContent = 'Parsing · 解析資料';
+
+const SPECIES_NAMES = window.TREE_SPECIES;
+const DISTS = window.TREE_DISTS;
+const REGIONS = window.TREE_REGIONS;
+const REMARKS = window.TREE_REMARKS;
+
+// raw: row 以 \n 分隔, 欄位以 \t 分隔
+// [lat, lon, s, d, r, rm, dia, h, id, date]
+const rawLines = window.TREE_ROWS_RAW.split('\n');
+const N = rawLines.length;
+const lats = new Float64Array(N);
+const lons = new Float64Array(N);
+const specIdx = new Uint16Array(N);      // 284 種 - 夠
+const distIdx = new Uint8Array(N);       // 12 區
+const regionIdx = new Uint16Array(N);    // 1071
+const remarkIdx = new Uint16Array(N);    // 3018
+const diameters = new Uint8Array(N);     // 0-255 cm
+const heights = new Float32Array(N);
+const ids = new Array(N);
+const dates = new Array(N);
+
+for (let i = 0; i < N; i++) {
+  const p = rawLines[i].split('\t');
+  lats[i] = parseFloat(p[0]);
+  lons[i] = parseFloat(p[1]);
+  specIdx[i] = +p[2];
+  distIdx[i] = +p[3];
+  regionIdx[i] = +p[4];
+  remarkIdx[i] = +p[5];
+  diameters[i] = Math.min(255, +p[6]);
+  heights[i] = parseFloat(p[7]);
+  ids[i] = p[8];
+  dates[i] = p[9];
+}
+// 釋放原始字串
+window.TREE_ROWS_RAW = null;
+
+// 樹種統計
+const speciesCountArr = new Int32Array(SPECIES_NAMES.length);
+for (let i = 0; i < N; i++) speciesCountArr[specIdx[i]]++;
+
+// 排序後的樹種清單 (by count desc)
+const speciesSorted = SPECIES_NAMES
+  .map((name, idx) => ({ name, idx, count: speciesCountArr[idx] }))
+  .sort((a, b) => b.count - a.count);
+
+// 顯示順序排名 → 用於配色 (count 多的配色靠前)
+const rankByIdx = new Int32Array(SPECIES_NAMES.length);
+speciesSorted.forEach((s, rank) => rankByIdx[s.idx] = rank);
+
+/* =========================================
+   2. 配色 — 自然色調 + 暖色點綴
+   ========================================= */
+const PALETTE = [
+  "#3d6a3a","#6b9960","#a9b96a","#d1a33a","#c06e2b","#7d8c3c","#4f8473","#96b079",
+  "#b8823b","#6b8c8a","#8a6a3a","#5a7d4a","#c89a4c","#a55e3a","#87a05b","#5d7a9e",
+  "#b9a262","#3f8060","#b86a5a","#8f9954","#72a394","#c0733b","#6b7d3a","#9b7f5a",
+  "#4b6b5a","#d4a75c","#7a5a7d","#5f8a6a","#a89068","#8b5a2b","#6b6b3d","#a6774c",
+];
+function colorForIdx(sidx) {
+  return PALETTE[rankByIdx[sidx] % PALETTE.length];
+}
+// 預先算好每棵樹的顏色 (避免每次 redraw 查表)
+const colorCache = new Array(SPECIES_NAMES.length);
+for (let i = 0; i < SPECIES_NAMES.length; i++) colorCache[i] = colorForIdx(i);
+
+/* =========================================
+   3. 狀態
+   ========================================= */
+const state = {
+  selected: new Set(), // species idx
+  searchTerm: "",
+  visibleMask: null, // 若有過濾則為 Uint8Array
+};
+
+/* =========================================
+   4. 地圖初始化
+   ========================================= */
+loadingText.textContent = 'Mapping · 建立地圖';
+
+// 計算中心 (使用採樣)
+// URL hash 狀態管理 — 格式：#lat,lon,zoom 或 #lat,lon,zoom/treeId
+function parseHash() {
+  const h = location.hash.replace(/^#/, '');
+  if (!h) return null;
+  const [locPart, treeId] = h.split('/');
+  const parts = locPart.split(',');
+  if (parts.length < 3) return null;
+  const lat = parseFloat(parts[0]);
+  const lon = parseFloat(parts[1]);
+  const zoom = parseFloat(parts[2]);
+  if (!isFinite(lat) || !isFinite(lon) || !isFinite(zoom)) return null;
+  return { lat, lon, zoom, treeId: treeId || null };
+}
+const initial = parseHash();
+
+let sumLat = 0, sumLon = 0, c = 0;
+for (let i = 0; i < N; i += 50) { sumLat += lats[i]; sumLon += lons[i]; c++; }
+const center = initial ? [initial.lat, initial.lon] : [sumLat / c, sumLon / c];
+const startZoom = initial ? initial.zoom : 13;
+
+const map = L.map('map', {
+  center, zoom: startZoom, zoomControl: false,
+  minZoom: 11, maxZoom: 19,
+  preferCanvas: true,
+});
+L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+  subdomains: 'abcd',
+  maxZoom: 19,
+}).addTo(map);
+
+/* =========================================
+   5. 自訂 Canvas Layer — 高效繪製 ~93k 點
+   ========================================= */
+const TreeLayer = L.Layer.extend({
+  onAdd(m) {
+    this._map = m;
+    // 放在 mapPane 裡，這樣 pan 動畫時它會跟著 transform；
+    // 但我們是以 layerPoint 座標系畫點，所以只要在 moveend/zoomend 重繪即可
+    const pane = m.getPane('mapPane');
+    const canvas = this._canvas = L.DomUtil.create('canvas', 'tree-canvas');
+    canvas.style.position = 'absolute';
+    canvas.style.left = '0';
+    canvas.style.top = '0';
+    canvas.style.pointerEvents = 'none';
+    canvas.style.zIndex = '450';
+    canvas.style.willChange = 'transform';
+    pane.appendChild(canvas);
+    m.on('moveend zoomend viewreset resize', this._redraw, this);
+    m.on('zoomanim', this._onZoomAnim, this);
+    m.on('click', this._onClick, this);
+    this._resize();
+    this._redraw();
+  },
+  onRemove(m) {
+    m.off('moveend zoomend viewreset resize', this._redraw, this);
+    m.off('zoomanim', this._onZoomAnim, this);
+    m.off('click', this._onClick, this);
+    L.DomUtil.remove(this._canvas);
+  },
+  _resize() {
+    // 畫布大小 = 視窗大小 (加 padding，避免 panning 邊緣看到空白)
+    const size = this._map.getSize();
+    const pad = 0; // mapPane 下的 canvas 會跟著 transform，padding 沒必要
+    const w = size.x + pad * 2;
+    const h = size.y + pad * 2;
+    const dpr = window.devicePixelRatio || 1;
+    this._canvas.width = w * dpr;
+    this._canvas.height = h * dpr;
+    this._canvas.style.width = w + 'px';
+    this._canvas.style.height = h + 'px';
+    this._dpr = dpr;
+    this._pad = pad;
+  },
+
+  _onZoomAnim(e) {
+    // 縮放動畫期間快速淡出 canvas，結束後 _redraw 會恢復
+    this._canvas.style.transition = 'opacity 0.15s';
+    this._canvas.style.opacity = '0';
+  },
+
+  _redraw() {
+    if (!this._map) return;
+    this._resize();
+    // canvas 在 mapPane 裡，位置用 layerPoint 定位於當前視窗左上角
+    const topLeft = this._map.containerPointToLayerPoint([0, 0]);
+    L.DomUtil.setPosition(this._canvas, topLeft);
+    this._canvas.style.transition = '';
+    this._canvas.style.opacity = '1';
+
+    const ctx = this._canvas.getContext('2d');
+    const dpr = this._dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, this._canvas.width / dpr, this._canvas.height / dpr);
+
+    const map = this._map;
+    const zoom = map.getZoom();
+    const bounds = map.getBounds();
+    const minLat = bounds.getSouth(), maxLat = bounds.getNorth();
+    const minLon = bounds.getWest(),  maxLon = bounds.getEast();
+
+    // 依 zoom 決定點大小與樣式
+    // zoom 11-12: 2px 圓 (城市概覽)
+    // zoom 13-14: 3px
+    // zoom 15-16: 4-5px + 樹徑反映
+    // zoom 17+: 5-8px 樹徑 + 白框
+    let baseR, useDiam, useStroke;
+    if (zoom < 13) { baseR = 1.6; useDiam = false; useStroke = false; }
+    else if (zoom < 15) { baseR = 2.4; useDiam = false; useStroke = false; }
+    else if (zoom < 17) { baseR = 3.5; useDiam = true;  useStroke = zoom >= 16; }
+    else                { baseR = 4.5; useDiam = true;  useStroke = true; }
+
+    const mask = state.visibleMask;
+    const filtering = mask !== null;
+    let drawn = 0;
+
+    // 批次：先依顏色分組 (path batching)
+    // 簡化作法：按 rank 顏色逐層繪製
+    const containerSize = map.getSize();
+    const w = containerSize.x, h = containerSize.y;
+
+    // 為了效能：一次性迴圈，inline 投影計算
+    // canvas 在 mapPane 裡，座標系為 layerPoint。我們需要把每個樹的 layerPoint
+    // 減去 canvas 的左上角 layerPoint (topLeft)，就能得到 canvas 內座標
+    const proj = map.options.crs.latLngToPoint.bind(map.options.crs);
+    const zoomReal = map.getZoom();
+    const mapPane = map.getPixelOrigin();
+    const canvasX = topLeft.x, canvasY = topLeft.y;
+
+    ctx.globalAlpha = filtering ? 0.92 : (zoom < 14 ? 0.72 : 0.88);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+
+    let lastFill = '';
+    for (let i = 0; i < N; i++) {
+      if (filtering && !mask[i]) continue;
+      const la = lats[i], lo = lons[i];
+      if (la < minLat || la > maxLat || lo < minLon || lo > maxLon) continue;
+
+      const p = proj(L.latLng(la, lo), zoomReal);
+      // p 是絕對 pixel 座標；轉成 layerPoint 要減 pixelOrigin；再減 canvas 左上 layerPoint 得 canvas 內 px
+      const x = p.x - mapPane.x - canvasX;
+      const y = p.y - mapPane.y - canvasY;
+
+      let r = baseR;
+      if (useDiam) {
+        const d = diameters[i];
+        r = baseR + Math.min(3.5, Math.sqrt(d) * 0.35);
+      }
+
+      const color = colorCache[specIdx[i]];
+      if (color !== lastFill) { ctx.fillStyle = color; lastFill = color; }
+
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+      if (useStroke) ctx.stroke();
+      drawn++;
+    }
+
+    this._drawn = drawn;
+    onViewUpdated(drawn, zoom);
+  },
+  _onClick(e) {
+    const p = e.containerPoint;
+    const zoom = this._map.getZoom();
+    if (zoom < 15) {
+      this._map.flyTo(e.latlng, Math.max(16, zoom + 2), { duration: 0.45 });
+      return;
+    }
+    const mask = state.visibleMask;
+    const filtering = mask !== null;
+    const thresh = 14;
+    let best = -1, bestD = thresh * thresh;
+    const bounds = this._map.getBounds();
+    const minLat = bounds.getSouth(), maxLat = bounds.getNorth();
+    const minLon = bounds.getWest(),  maxLon = bounds.getEast();
+    for (let i = 0; i < N; i++) {
+      if (filtering && !mask[i]) continue;
+      const la = lats[i], lo = lons[i];
+      if (la < minLat || la > maxLat || lo < minLon || lo > maxLon) continue;
+      const cp = this._map.latLngToContainerPoint([la, lo]);
+      const dx = cp.x - p.x;
+      const dy = cp.y - p.y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < bestD) { bestD = d2; best = i; }
+    }
+    if (best >= 0) showTreePopup(best);
+  },
+});
+
+const treeLayer = new TreeLayer();
+treeLayer.addTo(map);
+
+/* =========================================
+   6. Popup
+   ========================================= */
+const popup = L.popup({ closeButton: true, offset: [0, -2], maxWidth: 320, autoPan: true });
+
+// 目前打開 popup 的樹 index，用於 hash 同步
+let openTreeIdx = null;
+
+function showTreePopup(i) {
+  openTreeIdx = i;
+  const color = colorCache[specIdx[i]];
+  const html = `
+    <div class="tp">
+      <div class="tp-head">
+        <span class="tp-swatch" style="background:${color}"></span>
+        <span class="tp-species">${escapeHtml(SPECIES_NAMES[specIdx[i]])}</span>
+        <span class="tp-id">${ids[i]}</span>
+      </div>
+      <dl class="tp-grid">
+        <dt>區域</dt><dd>${escapeHtml(DISTS[distIdx[i]])} · ${escapeHtml(REGIONS[regionIdx[i]])}</dd>
+        <dt>位置</dt><dd>${escapeHtml(REMARKS[remarkIdx[i]]) || '—'}</dd>
+        <dt>樹徑</dt><dd>${diameters[i]} cm</dd>
+        <dt>樹高</dt><dd>${heights[i].toFixed(1)} m</dd>
+      </dl>
+    </div>
+    <div class="tp-meta">
+      <span>${dates[i]}</span>
+      <span>${lats[i].toFixed(5)}, ${lons[i].toFixed(5)}</span>
+    </div>
+  `;
+  popup.setLatLng([lats[i], lons[i]]).setContent(html).openOn(map);
+  updateHash();
+}
+
+map.on('popupclose', (e) => {
+  if (e.popup === popup) { openTreeIdx = null; updateHash(); }
+});
+
+/* URL hash 同步 */
+let hashTimer = null;
+function updateHash() {
+  if (hashTimer) clearTimeout(hashTimer);
+  hashTimer = setTimeout(() => {
+    const c = map.getCenter();
+    const z = map.getZoom();
+    let h = `#${c.lat.toFixed(5)},${c.lng.toFixed(5)},${z}`;
+    if (openTreeIdx !== null) h += `/${ids[openTreeIdx]}`;
+    history.replaceState(null, '', h);
+  }, 250);
+}
+map.on('moveend zoomend', updateHash);
+
+// 若 hash 指定樹，載入後打開 popup
+if (initial && initial.treeId) {
+  // 從 ids 找 idx
+  setTimeout(() => {
+    for (let i = 0; i < N; i++) {
+      if (ids[i] === initial.treeId) { showTreePopup(i); break; }
+    }
+  }, 100);
+}
+
+/* =========================================
+   7. 過濾與渲染
+   ========================================= */
+function rebuildMask() {
+  if (state.selected.size === 0) {
+    state.visibleMask = null;
+    return;
+  }
+  const mask = new Uint8Array(N);
+  for (let i = 0; i < N; i++) {
+    if (state.selected.has(specIdx[i])) mask[i] = 1;
+  }
+  state.visibleMask = mask;
+}
+
+function onViewUpdated(drawn, zoom) {
+  document.getElementById('ovVisible').textContent = drawn.toLocaleString();
+  // 低 zoom 時在視窗上有很多點，drawn 可以很大；但也告知視覺
+  const hint = document.getElementById('zoomHint');
+  if (zoom < 13 && state.selected.size === 0) {
+    hint.classList.add('show');
+    hint.textContent = '縮放地圖以查看個別樹木';
+  } else {
+    hint.classList.remove('show');
+  }
+}
+
+function applyFilter() {
+  rebuildMask();
+  const filtering = state.selected.size > 0;
+  // 面板計數
+  if (filtering) {
+    let c = 0;
+    for (let i = 0; i < N; i++) if (state.visibleMask[i]) c++;
+    document.getElementById('visibleCount').textContent = c.toLocaleString();
+  } else {
+    document.getElementById('visibleCount').textContent = N.toLocaleString();
+  }
+  document.getElementById('ovSpecies').textContent = filtering ? state.selected.size : SPECIES_NAMES.length;
+
+  const bar = document.getElementById('modeBar');
+  const btn = document.getElementById('clearFilterBtn');
+  if (filtering) {
+    bar.classList.add('filtering');
+    document.getElementById('modeText').textContent = `過濾中 · 已選 ${state.selected.size} 種`;
+    btn.disabled = false;
+  } else {
+    bar.classList.remove('filtering');
+    document.getElementById('modeText').textContent = '顯示全部樹木';
+    btn.disabled = true;
+  }
+
+  treeLayer._redraw();
+}
+
+function renderSpeciesList() {
+  const list = document.getElementById('speciesList');
+  const term = state.searchTerm.trim();
+  const filtered = term
+    ? speciesSorted.filter(s => s.name.includes(term))
+    : speciesSorted;
+
+  if (filtered.length === 0) {
+    list.innerHTML = `<div class="empty-state">找不到「${escapeHtml(term)}」<br/>試試其他關鍵字</div>`;
+    return;
+  }
+
+  const frag = document.createDocumentFragment();
+  filtered.forEach(s => {
+    const isActive = state.selected.has(s.idx);
+    const color = colorCache[s.idx];
+    const display = term
+      ? s.name.replace(new RegExp(`(${escapeReg(term)})`, 'g'), '<mark>$1</mark>')
+      : s.name;
+    const row = document.createElement('div');
+    row.className = 'species-row' + (isActive ? ' active' : '');
+    row.dataset.idx = s.idx;
+    row.innerHTML = `
+      <div class="check"></div>
+      <div class="swatch" style="background:${color}"></div>
+      <div class="name">${display}</div>
+      <div class="count">${s.count.toLocaleString()}</div>
+    `;
+    row.addEventListener('click', () => {
+      const i = +row.dataset.idx;
+      if (state.selected.has(i)) state.selected.delete(i);
+      else state.selected.add(i);
+      renderSpeciesList();
+      renderChips();
+      applyFilter();
+    });
+    frag.appendChild(row);
+  });
+  list.innerHTML = '';
+  list.appendChild(frag);
+}
+
+function renderChips() {
+  const wrap = document.getElementById('filterSummary');
+  if (state.selected.size === 0) { wrap.innerHTML = ''; return; }
+  wrap.innerHTML = [...state.selected].map(i => {
+    const name = SPECIES_NAMES[i];
+    const color = colorCache[i];
+    return `
+      <span class="chip" data-idx="${i}">
+        <span class="chip-swatch" style="background:${color}"></span>
+        ${escapeHtml(name)}
+        <span class="chip-x">×</span>
+      </span>`;
+  }).join('');
+  wrap.querySelectorAll('.chip').forEach(c => {
+    c.addEventListener('click', () => {
+      state.selected.delete(+c.dataset.idx);
+      renderSpeciesList();
+      renderChips();
+      applyFilter();
+    });
+  });
+}
+
+/* =========================================
+   8. UI Events
+   ========================================= */
+const searchInput = document.getElementById('searchInput');
+const clearBtn = document.getElementById('clearBtn');
+searchInput.addEventListener('input', e => {
+  state.searchTerm = e.target.value;
+  clearBtn.classList.toggle('show', state.searchTerm.length > 0);
+  renderSpeciesList();
+});
+clearBtn.addEventListener('click', () => {
+  searchInput.value = ''; state.searchTerm = ''; clearBtn.classList.remove('show');
+  renderSpeciesList(); searchInput.focus();
+});
+document.getElementById('clearFilterBtn').addEventListener('click', () => {
+  state.selected.clear();
+  renderSpeciesList(); renderChips(); applyFilter();
+});
+
+// 手機選單
+const sideEl = document.getElementById('side');
+const scrimEl = document.getElementById('scrim');
+const menuBtn = document.getElementById('menuBtn');
+function toggleMenu(open) {
+  const o = open ?? !sideEl.classList.contains('open');
+  sideEl.classList.toggle('open', o);
+  scrimEl.classList.toggle('show', o);
+}
+menuBtn.addEventListener('click', () => toggleMenu());
+scrimEl.addEventListener('click', () => toggleMenu(false));
+// 旋轉 / resize 時重算地圖
+window.addEventListener('resize', () => { map.invalidateSize(); });
+
+// 定位功能
+let userMarker = null;
+let userAccCircle = null;
+const locateBtn = document.getElementById('locateBtn');
+locateBtn.addEventListener('click', () => {
+  if (!navigator.geolocation) {
+    alert('您的瀏覽器不支援定位功能');
+    return;
+  }
+  locateBtn.classList.add('loading');
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      locateBtn.classList.remove('loading');
+      locateBtn.classList.add('active');
+      const { latitude: la, longitude: lo, accuracy } = pos.coords;
+      if (userMarker) { map.removeLayer(userMarker); map.removeLayer(userAccCircle); }
+      const icon = L.divIcon({
+        className: 'user-dot-wrap',
+        html: '<div class="user-dot-pulse"></div><div class="user-dot-inner"></div>',
+        iconSize: [16, 16], iconAnchor: [8, 8],
+      });
+      userMarker = L.marker([la, lo], { icon, interactive: false, keyboard: false }).addTo(map);
+      userAccCircle = L.circle([la, lo], {
+        radius: Math.min(accuracy, 200),
+        color: '#2f7cd6', weight: 1, fillColor: '#2f7cd6', fillOpacity: 0.08,
+        interactive: false,
+      }).addTo(map);
+      map.flyTo([la, lo], Math.max(map.getZoom(), 16), { duration: 0.6 });
+    },
+    err => {
+      locateBtn.classList.remove('loading');
+      const msg = err.code === 1 ? '定位權限被拒絕' : err.code === 2 ? '無法取得位置' : '定位逾時';
+      alert(msg + '\n請確認浏覽器已允許定位權限。');
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+  );
+});
+
+/* =========================================
+   9. 啟動
+   ========================================= */
+document.getElementById('totalCount').textContent = N.toLocaleString();
+document.getElementById('speciesCount').textContent = SPECIES_NAMES.length.toLocaleString();
+
+// 計算最新調查日期
+let latestDate = '';
+for (let i = 0; i < N; i++) if (dates[i] > latestDate) latestDate = dates[i];
+document.getElementById('latestDate').textContent = latestDate;
+renderSpeciesList();
+renderChips();
+applyFilter();
+
+setTimeout(() => {
+  document.getElementById('loading').classList.add('hide');
+  setTimeout(() => document.getElementById('loading').remove(), 500);
+}, 200);
+
+/* Utils */
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeReg(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+</script>
+</body>
+</html>
