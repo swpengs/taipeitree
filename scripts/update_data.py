@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import urllib.request
+import filecmp
 from datetime import datetime
 
 # 配置資訊
@@ -43,6 +44,7 @@ def download_and_backup():
     """下載最新資料並備份舊有 CSV"""
     os.makedirs("uploads", exist_ok=True)
     
+    backup_path = None
     if os.path.exists(INPUT_CSV):
         # 產生備份檔名: TaipeiTree_YYYY-MM-DD_HH_mm_ss.csv
         timestamp = datetime.now().strftime("_%Y-%m-%d_%H_%M_%S")
@@ -54,6 +56,15 @@ def download_and_backup():
     try:
         urllib.request.urlretrieve(DATA_URL, INPUT_CSV)
         print("下載完成。")
+        
+        # 比對新下載的檔案與備份檔
+        if backup_path and os.path.exists(backup_path):
+            if filecmp.cmp(INPUT_CSV, backup_path, shallow=False):
+                print("資料內容與舊版完全相同，移除重複的備份檔。")
+                os.remove(backup_path)
+            else:
+                print("偵測到資料更新，保留備份檔。")
+                
         return True
     except Exception as e:
         print(f"下載失敗: {e}")
