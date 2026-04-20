@@ -8,6 +8,12 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous"/>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
+<link rel="icon" href="favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#6b3310">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
 <style>
   :root {
@@ -46,10 +52,11 @@
   .brand { padding: 20px 22px 14px; border-bottom: 1px solid var(--line); }
   .brand-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
   .brand-mark {
-    width: 22px; height: 22px; border-radius: 50%;
-    background: radial-gradient(circle at 35% 35%, #6a9860 0%, #3d6a3a 55%, #274420 100%);
-    box-shadow: 0 0 0 3px #fff, 0 0 0 4px var(--line);
+    width: 26px; height: 26px; border-radius: 6px;
+    overflow: hidden; flex-shrink: 0;
+    box-shadow: 0 0 0 2px #fff, 0 0 0 3px var(--line);
   }
+  .brand-mark img { width: 100%; height: 100%; display: block; }
   .brand-title { font-size: 15px; font-weight: 600; letter-spacing: 0.02em; }
   .brand-sub { font-family: "JetBrains Mono", monospace; font-size: 10.5px; color: var(--ink-3); letter-spacing: 0.04em; text-transform: uppercase; }
   .stats { display: flex; gap: 18px; margin-top: 10px; }
@@ -210,7 +217,7 @@
   <aside class="side" id="side">
     <div class="brand">
       <div class="brand-row">
-        <div class="brand-mark"></div>
+        <div class="brand-mark"><img src="favicon.svg" alt="" draggable="false"></div>
         <div>
           <div class="brand-title">台北市行道樹地圖</div>
           <div class="brand-sub">Street Tree Atlas · Taipei</div>
